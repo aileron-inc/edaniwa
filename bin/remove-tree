@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+usage() {
+  echo "usage: $0 <owner/repo> <branch> [--force] | $0 <worktree-path> [--force]" >&2
+  exit 1
+}
+
+FORCE=0
+if [ "${@: -1}" = "--force" ]; then
+  FORCE=1
+  set -- "${@:1:$(($#-1))}"
+fi
+
+if [ $# -eq 1 ]; then
+  WORKTREE_PATH_INPUT="$1"
+  if [ ! -d "$WORKTREE_PATH_INPUT" ]; then
+    echo "worktree path not found: $WORKTREE_PATH_INPUT" >&2
+    exit 1
+  fi
+  WORKTREE_PATH="$(cd "$WORKTREE_PATH_INPUT" && pwd)"
+  REPO_NAME="$(basename "$(dirname "$WORKTREE_PATH")")"
+  BRANCH="$(basename "$WORKTREE_PATH")"
+elif [ $# -eq 2 ]; then
+  REPO="$1"
+  BRANCH="$2"
+  REPO_NAME="${REPO##*/}"
+  WORKTREE_PATH="$ROOT/tree/$REPO_NAME/$BRANCH"
+else
+  usage
+fi
+
+GIT_DIR="$ROOT/core/$REPO_NAME"
+
+if [ ! -d "$GIT_DIR" ]; then
+  echo "core repo not found: $GIT_DIR" >&2
+  exit 1
+fi
+
+if [ ! -d "$WORKTREE_PATH" ]; then
+  echo "worktree path not found: $WORKTREE_PATH" >&2
+  exit 1
+fi
+
+WORKTREE_ABS="$(cd "$WORKTREE_PATH" && pwd)"
+
+CURRENT_BRANCH="$(git -C "$WORKTREE_ABS" rev-parse --abbrev-ref HEAD)"
+if [ "$CURRENT_BRANCH" != "$BRANCH" ]; then
+  echo "worktree at $WORKTREE_ABS is on branch $CURRENT_BRANCH, expected $BRANCH" >&2
+  exit 1
+fi
+
+if [ $FORCE -eq 0 ] && [ -n "$(git -C "$WORKTREE_ABS" status --porcelain)" ]; then
+  echo "worktree has uncommitted changes; clean/stash or re-run with --force" >&2
+  exit 1
+fi
+
+if ! git --git-dir="$GIT_DIR" worktree list --porcelain | grep -Fqx "worktree $WORKTREE_ABS"; then
+  echo "worktree not registered in $GIT_DIR: $WORKTREE_ABS" >&2
+  exit 1
+fi
+
+REMOVE_FLAGS=()
+if [ $FORCE -eq 1 ]; then
+  REMOVE_FLAGS+=(-f)
+fi
+
+git --git-dir="$GIT_DIR" worktree remove "${REMOVE_FLAGS[@]}" "$WORKTREE_ABS"
+git --git-dir="$GIT_DIR" worktree prune
+
+echo "removed worktree at $WORKTREE_ABS for $BRANCH"

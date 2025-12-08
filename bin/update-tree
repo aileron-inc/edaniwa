@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO="${1:?usage: $0 <owner/repo> <branch>}"
+BRANCH="${2:?usage: $0 <owner/repo> <branch>}"
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKTREE_PATH="$ROOT/tree/${REPO##*/}/$BRANCH"
+
+if [ ! -d "$WORKTREE_PATH" ]; then
+  echo "worktree not found: $WORKTREE_PATH" >&2
+  exit 1
+fi
+
+if [ -n "$(git -C "$WORKTREE_PATH" status --porcelain)" ]; then
+  echo "worktree has uncommitted changes; stash or clean before updating" >&2
+  exit 1
+fi
+
+CURRENT_BRANCH="$(git -C "$WORKTREE_PATH" rev-parse --abbrev-ref HEAD)"
+if [ "$CURRENT_BRANCH" != "$BRANCH" ]; then
+  echo "worktree at $WORKTREE_PATH is on branch $CURRENT_BRANCH, expected $BRANCH" >&2
+  exit 1
+fi
+
+git -C "$WORKTREE_PATH" fetch --all --prune
+
+UPSTREAM="$(git -C "$WORKTREE_PATH" rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null || true)"
+if [ -z "$UPSTREAM" ]; then
+  echo "no upstream configured for $BRANCH; fetched only" >&2
+  exit 0
+fi
+
+git -C "$WORKTREE_PATH" rebase "$UPSTREAM"
+
+echo "updated $WORKTREE_PATH to $UPSTREAM"

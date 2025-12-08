@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO="${1:?usage: $0 <owner/repo>}"
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+GIT_DIR="$ROOT/core/${REPO##*/}"
+
+if [ ! -d "$GIT_DIR" ]; then
+  echo "core repo not found: $GIT_DIR" >&2
+  exit 1
+fi
+
+git --git-dir="$GIT_DIR" fetch --all --prune
+
+echo "updated core repo at $GIT_DIR"

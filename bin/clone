@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO="${1:?usage: $0 <owner/repo>}"
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TARGET="$ROOT/core/${REPO##*/}"
+
+if [ -d "$TARGET/.git" ]; then
+  echo "already exists: $TARGET"
+  exit 0
+fi
+
+mkdir -p "$(dirname "$TARGET")"
+
+GH_HOST="${GH_HOST:-github.com}" gh repo clone "$REPO" "$TARGET" -- --bare
+
+echo "cloned (bare) into $TARGET"

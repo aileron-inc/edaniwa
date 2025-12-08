@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO="${1:?usage: $0 <owner/repo> <branch> [base-ref=main]}"
+BRANCH="${2:?usage: $0 <owner/repo> <branch> [base-ref=main]}"
+REQUESTED_BASE_REF="${3:-main}"
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_NAME="${REPO##*/}"
+GIT_DIR="$ROOT/core/$REPO_NAME"
+WORKTREE_PATH="$ROOT/tree/$REPO_NAME/$BRANCH"
+
+if [ ! -d "$GIT_DIR" ]; then
+  echo "core repo not found: $GIT_DIR" >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$WORKTREE_PATH")"
+
+if ! git --git-dir="$GIT_DIR" fetch --all --prune; then
+  echo "warning: fetch failed; proceeding with local refs" >&2
+fi
+
+BASE_REF="$REQUESTED_BASE_REF"
+if ! git --git-dir="$GIT_DIR" rev-parse --verify --quiet "$BASE_REF^{commit}"; then
+  echo "base ref not found: $BASE_REF" >&2
+  exit 1
+fi
+
+if git --git-dir="$GIT_DIR" show-ref --verify --quiet "refs/heads/$BRANCH"; then
+  TARGET_REF="$BRANCH"
+  CREATE_FLAG=()
+else
+  TARGET_REF="$BASE_REF"
+  CREATE_FLAG=(-b "$BRANCH")
+fi
+
+git --git-dir="$GIT_DIR" worktree add "${CREATE_FLAG[@]}" "$WORKTREE_PATH" "$TARGET_REF"
+
+echo "added worktree at $WORKTREE_PATH for $BRANCH"
