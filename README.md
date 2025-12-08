@@ -19,3 +19,6 @@ This repo is a small wrapper around bare clones in `core/` and checked-out workt
 ## core/ と tree/
 - `core/` 配下は bare clone の保管場所だよ。ここは直接作業しないでバックエンドとして扱ってね。
 - `tree/` 配下は `bin/worktree` で作る各ブランチの作業ディレクトリだよ。中身は作業者やブランチごとに変わるから、この README では具体的な構成には触れていないよ。
+
+## License
+- MIT
